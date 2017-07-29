@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/">
+        <file>Images/cardMachine.ico</file>
+    </qresource>
+</RCC>
