@@ -8,6 +8,7 @@
 #include <QTextEdit>
 #include "serialporthandler.h"
 #include "sqlhandler.h"
+#include <tcpserver.h>
 
 namespace Ui {
 class MainWindow;
@@ -31,12 +32,15 @@ private:
 
     QPushButton *findReaderButton_;
     QPushButton *readProximityCardButton_;
+    QPushButton *stopProximityCardButton_;
     QPushButton *addProximityCardToDbButton_;
     QTextEdit *serialPortInformation_;
     QTextEdit *proximityCardInformation_;
+    QTextEdit *ipAddressPort_;
     QTextEdit *serialMessagesHistory_;
     std::unique_ptr<SerialPortHandler> serialPortHandler_;
     std::unique_ptr<SqlHandler> sqlHandler_;
+    std::unique_ptr<TCPServer> tcpServer_;
     std::unique_ptr<Ui::MainWindow> ui_;
  };
 

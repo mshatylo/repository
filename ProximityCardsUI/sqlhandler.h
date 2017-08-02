@@ -6,6 +6,7 @@
 #include <memory>
 #include <QObject>
 #include <QString>
+#include <QMutex>
 
 class SqlHandler : public QObject
 {
@@ -64,6 +65,7 @@ private:
     QString password_;
     QString databaseName_;
     QString tableName_;
+    QMutex mutex_;
 };
 
 #endif // SQLHANDLER_H

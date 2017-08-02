@@ -5,6 +5,22 @@
 #include <QMutex>
 #include <QWaitCondition>
 
+#define ONE_HUNDRID_MILI_SECONDS            (100)
+#define MAX_QUERY_TO_PROXIMITY_CARD_READER  (5)
+
+struct Settings {
+    Settings();
+    Settings & operator=(const Settings &other) = default;
+    bool operator==(const Settings &other);
+
+    int parity_;
+    int baudRate_;
+    int dataBits_;
+    int stopBits_;
+    int responseTime_;
+    uint numberOfRetries_;
+};
+
 class SerialPortMasterThread : public QThread
 {
     Q_OBJECT
@@ -14,7 +30,7 @@ public:
     ~SerialPortMasterThread();
 
     void transaction(const QString &portName,
-                     int waitTimeout,
+                     Settings settings,
                      const QString &request,
                      bool closeSerial = false,
                      bool closeSerialInTimeOut = false);
@@ -24,11 +40,12 @@ signals:
     void response(const QString &portName_, const QString &s);
     void error(const QString &portName_, const QString &s);
     void timeout(const QString &portName_, const QString &s);
+    void sendStatusBarMessage(QString message);
 
 private:
     QString portName_;
     QString request_;
-    int waitTimeout_;
+    Settings settings_;
     QMutex mutex_;
     QWaitCondition waitCondition_;
     bool quit_;

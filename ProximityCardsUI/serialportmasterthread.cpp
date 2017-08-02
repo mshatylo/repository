@@ -1,11 +1,33 @@
 #include "serialportmasterthread.h"
 #include <QtSerialPort/QSerialPort>
 #include <QTime>
+#include <QDebug>
+#include "tracing.h"
 
 #define TEN_MILISECONDS (10)
+
+
+Settings::Settings()
+    : parity_(QSerialPort::NoParity),
+      baudRate_(QSerialPort::Baud19200),
+      dataBits_(QSerialPort::Data8),
+      stopBits_(QSerialPort::OneStop),
+      responseTime_(ONE_HUNDRID_MILI_SECONDS),
+      numberOfRetries_(MAX_QUERY_TO_PROXIMITY_CARD_READER)
+{}
+
+bool Settings::operator==(const Settings &other) {
+    return  this->parity_ == other.parity_
+            && this->baudRate_ == other.baudRate_
+            && this->dataBits_ == other.dataBits_
+            && this->stopBits_ == other.stopBits_
+            && this->responseTime_ == other.responseTime_
+            && this->numberOfRetries_ == other.numberOfRetries_
+            ? true : false;
+}
+
 SerialPortMasterThread::SerialPortMasterThread(QObject *parent)
     : QThread(parent),
-      waitTimeout_(0),
       quit_(false),
       closeSerial_(false),
       closeSerialInTimeOut_(false)
@@ -22,15 +44,15 @@ SerialPortMasterThread::~SerialPortMasterThread()
 }
 
 void SerialPortMasterThread::transaction(const QString &portName,
-                                         int waitTimeout,
+                                         Settings settings,
                                          const QString &request,
                                          bool closeSerial,
                                          bool closeSerialInTimeOut)
 {
     QMutexLocker locker(&mutex_);
-    this->portName_ = portName;
-    this->waitTimeout_ = waitTimeout;
-    this->request_ = request;
+    portName_ = portName;
+    settings_ = settings;
+    request_ = request;
     closeSerial_ = closeSerial;
     closeSerialInTimeOut_ = closeSerialInTimeOut;
     if (!isRunning())
@@ -41,28 +63,36 @@ void SerialPortMasterThread::transaction(const QString &portName,
 
 void SerialPortMasterThread::run()
 {
-    bool currentPortNameChanged = false;
+    bool currentPortNameOrSettingsChanged = false;
     bool serialIsClosed = true;
+
 
     mutex_.lock();
     QString currentPortName;
-    if (currentPortName != portName_) {
+    Settings settings;
+    if (currentPortName != portName_ || !(settings == settings_)) {
         currentPortName = portName_;
-        currentPortNameChanged = true;
+        settings = settings_;
+        currentPortNameOrSettingsChanged = true;
     }
-    int currentWaitTimeout = waitTimeout_;
+    int currentWaitTimeout = settings_.responseTime_;
     QString currentRequest = request_;
     mutex_.unlock();
 
     QSerialPort serial;
 
     while (!quit_) {
-        if (currentPortNameChanged) {
+        if (currentPortNameOrSettingsChanged) {
             if (!serialIsClosed) {
                 serial.close();
                 serialIsClosed = true;
             }
             serial.setPortName(currentPortName);
+            serial.setParity(static_cast<QSerialPort::Parity>(settings.parity_));
+            serial.setBaudRate(static_cast<QSerialPort::BaudRate>(settings.baudRate_));
+            serial.setDataBits(static_cast<QSerialPort::DataBits>(settings.dataBits_));
+            serial.setStopBits(static_cast<QSerialPort::StopBits>(settings.stopBits_));
+            currentWaitTimeout = settings.responseTime_;
         }
         if (serialIsClosed) {
             if (!serial.open(QIODevice::ReadWrite)) {
@@ -75,16 +105,19 @@ void SerialPortMasterThread::run()
         }
 
         // write request
-        QByteArray requestData = currentRequest.toLocal8Bit();
+        QByteArray requestData = currentRequest.toLatin1();
         serial.write(requestData);
-        if (serial.waitForBytesWritten(waitTimeout_)) {
+        if (serial.waitForBytesWritten(settings.responseTime_)) {
             // read response
             if (serial.waitForReadyRead(currentWaitTimeout)) {
                 QByteArray responseData = serial.readAll();
                 while (serial.waitForReadyRead(TEN_MILISECONDS)) {
                     responseData += serial.readAll();
                 }
-                QString responseDataString(responseData);
+                QString responseDataString;
+                for (int i = 0; i < responseData.size(); i++ )
+                    responseDataString += (responseData.at(i));
+                qDebug() << responseDataString;
                 emit response(serial.portName(), responseDataString);
             } else {
                 emit timeout(serial.portName(), tr("Wait read response timeout %1")
@@ -115,18 +148,21 @@ void SerialPortMasterThread::run()
             closeSerial_ = false;
             serialIsClosed = true;
         }
-        mutex_.unlock();
-
-        mutex_.lock();
+#ifdef TRACE
+        emit sendStatusBarMessage("waitCondition_.wait(&mutex_)");
+#endif
         waitCondition_.wait(&mutex_);
-
-        if (currentPortName != portName_) {
+#ifdef TRACE
+        emit sendStatusBarMessage("waitCondition_.wait(&mutex_) is done! Thread executes.");
+#endif
+        if (currentPortName != portName_ || !(settings == settings_)) {
             currentPortName = portName_;
-            currentPortNameChanged = true;
+            settings = settings_;
+            currentPortNameOrSettingsChanged = true;
         } else {
-            currentPortNameChanged = false;
+            currentPortNameOrSettingsChanged = false;
         }
-        currentWaitTimeout = waitTimeout_;
+        currentWaitTimeout = settings_.responseTime_;
         currentRequest = request_;
         mutex_.unlock();
     }

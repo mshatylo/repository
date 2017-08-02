@@ -22,18 +22,21 @@
 #define SHIFT_WINDOW_HEIGHT                 (30)
 
 #define WINDOW_WIDTH                        (500)
-#define WINDOW_HEIGHT                       (600)
+#define WINDOW_HEIGHT                       (700)
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
     findReaderButton_(new QPushButton(tr("Find proximity card reader"))),
     readProximityCardButton_(new QPushButton(tr("Read proximity card"))),
+    stopProximityCardButton_(new QPushButton()),
     addProximityCardToDbButton_(new QPushButton(tr("Add to DB"))),
     serialPortInformation_(new /*QLabel*/QTextEdit(tr("Serial port information"))),
     proximityCardInformation_(new QTextEdit("HELLO EVERYONE")),
+    ipAddressPort_(new QTextEdit),
     serialMessagesHistory_(new QTextEdit),
     serialPortHandler_(new SerialPortHandler),
     sqlHandler_(new SqlHandler("localhost", "root", "olhasham2012", "ProximityCardsDatabase", "ProximityCardsTable")),
+    tcpServer_(new TCPServer),
     ui_(new Ui::MainWindow)
 {
     if (ui_) {
@@ -51,11 +54,26 @@ MainWindow::MainWindow(QWidget *parent) :
                                                       GRID_LAYOUT_FIRST_ROW_INDEX,
                                                       GRID_LAYOUT_FIRST_COLUMN_INDEX);
             }
-            if (readProximityCardButton_) {
-                readProximityCardButton_->setToolTip(tr("Read proximity card"));
-                readProximityCardButton_->setMinimumWidth(150);
-                connect(readProximityCardButton_, SIGNAL(pressed()), SLOT(readProximityCard()));
-                mainLayout->addWidget(readProximityCardButton_,
+
+            QWidget *proximityCardsButtonswidget = new QWidget;
+            QVBoxLayout *proximityCardsButtonsLayout = new QVBoxLayout;
+            if (proximityCardsButtonswidget && proximityCardsButtonsLayout) {
+                if (readProximityCardButton_) {
+                    readProximityCardButton_->setToolTip(tr("Read proximity card"));
+                    readProximityCardButton_->setMinimumWidth(150);
+                    connect(readProximityCardButton_, SIGNAL(pressed()), SLOT(readProximityCard()));
+                    proximityCardsButtonsLayout->addWidget(readProximityCardButton_);
+                }
+                if (stopProximityCardButton_) {
+                    stopProximityCardButton_->setToolTip(tr("Stop proximity card reading"));
+                    stopProximityCardButton_->setIcon(QIcon("://Images/cancel.ico"));
+                    stopProximityCardButton_->setMaximumWidth(20);
+                    if (serialPortHandler_)
+                        connect(stopProximityCardButton_, SIGNAL(pressed()), serialPortHandler_.get(), SLOT(stopProximityCard()));
+                     proximityCardsButtonsLayout->addWidget(stopProximityCardButton_);
+                }
+                proximityCardsButtonswidget->setLayout(proximityCardsButtonsLayout);
+                mainLayout->addWidget(proximityCardsButtonswidget,
                                                       GRID_LAYOUT_SECOND_ROW_INDEX,
                                                       GRID_LAYOUT_FIRST_COLUMN_INDEX);
             }
@@ -83,13 +101,24 @@ MainWindow::MainWindow(QWidget *parent) :
                                                       GRID_LAYOUT_SECOND_ROW_INDEX,
                                                       GRID_LAYOUT_THIRD_COLUMN_INDEX);
             }
+            if (ipAddressPort_) {
+                ipAddressPort_->setReadOnly(true);
+                ipAddressPort_->setToolTip(tr("IP addres and port"));
+                if (tcpServer_)
+                    connect(tcpServer_.get(), &TCPServer::signalSendStatusBarMessage, ipAddressPort_, &QTextEdit::append);
+                mainLayout->addWidget(ipAddressPort_,
+                                      GRID_LAYOUT_THIRD_ROW_INDEX,
+                                      GRID_LAYOUT_FIRST_COLUMN_INDEX,
+                                      NO_ROWS_SPAN,
+                                      THREE_COLUMNS_SPAN);
+            }
             if (serialMessagesHistory_) {
                 serialMessagesHistory_->setReadOnly(true);
                 serialMessagesHistory_->setToolTip(tr("Serial ports messages history"));
                 if (serialPortHandler_)
                     connect(serialPortHandler_.get(), &SerialPortHandler::signalSendStatusBarMessage, serialMessagesHistory_, &QTextEdit::append);
                 mainLayout->addWidget(serialMessagesHistory_,
-                                      GRID_LAYOUT_THIRD_ROW_INDEX,
+                                      GRID_LAYOUT_FOURTH_ROW_INDEX,
                                       GRID_LAYOUT_FIRST_COLUMN_INDEX,
                                       NO_ROWS_SPAN,
                                       THREE_COLUMNS_SPAN);
@@ -103,6 +132,7 @@ MainWindow::MainWindow(QWidget *parent) :
 
         getSerialPortInformation();
         if (serialPortHandler_) {
+            serialPortHandler_->setSerialSettings(QSerialPort::NoParity, QSerialPort::Baud19200, QSerialPort::Data8, QSerialPort::OneStop);
             connect(serialPortHandler_.get(), &SerialPortHandler::signalSendControlsEnabled, [this](bool enable) {
                 if (findReaderButton_ && readProximityCardButton_) {
                     findReaderButton_->setEnabled(enable);
@@ -130,6 +160,13 @@ MainWindow::MainWindow(QWidget *parent) :
         if (sqlHandler_) {
             connect(sqlHandler_.get(), &SqlHandler::signalErrorMessage, this, &MainWindow::MyslErrorMessage);
             sqlHandler_->init();
+        }
+        if (tcpServer_) {
+            connect(tcpServer_.get(), &TCPServer::signalSendStatusBarMessage, [this](QString message){
+                statusBar()->clearMessage();
+                statusBar()->showMessage(message);
+            });
+            tcpServer_->init();
         }
     }
 }

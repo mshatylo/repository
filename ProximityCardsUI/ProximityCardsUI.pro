@@ -4,7 +4,7 @@
 #
 #-------------------------------------------------
 
-QT       += core gui serialbus serialport sql network
+QT       += core gui serialport sql network
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -30,7 +30,8 @@ SOURCES += \
     serialbusactions.cpp \
     proximitycardsreaderbusactions.cpp \
     serialportmasterthread.cpp \
-    sqlhandler.cpp
+    sqlhandler.cpp \
+    tcpserver.cpp
 
 HEADERS += \
         mainwindow.h \
@@ -38,7 +39,9 @@ HEADERS += \
     serialbusactions.h \
     proximitycardsreaderbusactions.h \
     serialportmasterthread.h \
-    sqlhandler.h
+    sqlhandler.h \
+    tcpserver.h \
+    tracing.h
 
 FORMS += \
         mainwindow.ui

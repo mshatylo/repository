@@ -14,28 +14,11 @@
 #include <QMutexLocker>
 #include "proximitycardsreaderbusactions.h"
 
-
 class SerialPortHandler : public QObject
 {
     Q_OBJECT
 public:
-    struct Settings {
-        int parity_;
-        int baudRate_;
-        int dataBits_;
-        int stopBits_;
-        int responseTime_;
-        int numberOfRetries_;
 
-        Settings()
-            : parity_(QSerialPort::EvenParity),
-              baudRate_(QSerialPort::Baud19200),
-              dataBits_(QSerialPort::Data8),
-              stopBits_(QSerialPort::OneStop),
-              responseTime_(100),
-              numberOfRetries_(3)
-        {}
-    };
     enum class MessageType {
         response_,
         timout_,
@@ -46,6 +29,9 @@ public:
 
     QString getSerialPortInformation(void);
     void proximityCardInformation(void);
+    void setSerialSettings(int parity, int baudRate, int dataBits, int stopBits,
+                           int responseTime = ONE_HUNDRID_MILI_SECONDS,
+                           int numberOfRetries = MAX_QUERY_TO_PROXIMITY_CARD_READER);
 
 signals:
     void signalSendControlsEnabled(bool enable);
@@ -55,10 +41,11 @@ signals:
 
 public slots:
     void slotStusbarMessage(QString message);
+    void proximityCardInformationProcess(const MessageType &messageType);
     void serialPortResponse(const QString &portName, const QString &responce);
     void serialPortProcessError(const QString &portName, const QString &s);
     void serialPortProcessTimeout(const QString &portName, const QString &s);
-    void proximityCardInformationProcess(const MessageType &messageType);
+    void stopProximityCard(void);
 private:
 
     bool veryfyDataPacket(SerialBusActions *serialBusActions,
@@ -80,15 +67,17 @@ private:
 
 private:
     QList<QSerialPortInfo> serialPortInformation_;
-    std::unique_ptr<ProximityCardsReaderBusActions> proximityCardsReaderBusActions;
+    std::unique_ptr<ProximityCardsReaderBusActions> proximityCardsReaderBusActions_;
     SerialBusActions *serialBusActions_;
     Settings settings_;
     SerialPortMasterThread serialPortMasterThread_;
     QMutex mutex_;
-    int transactionCount_/*{0}*/;
+    QMutex statusBarMessageMutex_;
+    int transactionCount_;
     QString currentRequest_;
-    uint queriedNumbers_/*{0}*/;
-    const uint MaxQueryToProximityCardReader_/*{5}*/;
+    uint queriedNumbers_;
+    QByteArray lastReadCardData_;
+    bool stopProcessCardReader_;
 };
 
 #endif // SERIALPORTHANDLER_H

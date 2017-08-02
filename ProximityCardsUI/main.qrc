@@ -1,5 +1,6 @@
 <RCC>
     <qresource prefix="/">
         <file>Images/cardMachine.ico</file>
+        <file>Images/cancel.ico</file>
     </qresource>
 </RCC>
