@@ -197,7 +197,9 @@ void MainWindow::MyslErrorMessage(const QString &title, const QString &message) 
 void MainWindow::addProximityCardToDatabase(void) {
     emit signalSendControlsEnabled(false);
     statusBar()->showMessage(tr("Adding the card data..."));
-    QString proximityCardData = proximityCardInformation_->toPlainText();
+    QString proximityCardData;
+    if (serialPortHandler_)
+        proximityCardData = serialPortHandler_->getLastCardData();
     if (proximityCardData.isEmpty()) {
         QMessageBox::warning(this, tr("Can't add the card!")
                              , tr("Nothing to add"));

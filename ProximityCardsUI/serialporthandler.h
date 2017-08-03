@@ -32,6 +32,7 @@ public:
     void setSerialSettings(int parity, int baudRate, int dataBits, int stopBits,
                            int responseTime = ONE_HUNDRID_MILI_SECONDS,
                            int numberOfRetries = MAX_QUERY_TO_PROXIMITY_CARD_READER);
+    QString getLastCardData(void) const;
 
 signals:
     void signalSendControlsEnabled(bool enable);

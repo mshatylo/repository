@@ -48,6 +48,13 @@ void SerialPortHandler::setSerialSettings(int parity, int baudRate, int dataBits
     settings_.numberOfRetries_ = numberOfRetries;
 }
 
+QString SerialPortHandler::getLastCardData(void) const {
+    QString lastReadCardData;
+    for (int i = 0; i < lastReadCardData_.size(); i++ )
+        lastReadCardData += (lastReadCardData_.at(i));
+    return lastReadCardData;
+}
+
 bool SerialPortHandler::veryfyDataPacket(SerialBusActions *serialBusActions,
                                          DataRecord **dataRecord,
                                          uchar address,
@@ -69,6 +76,7 @@ void SerialPortHandler::slotStusbarMessage(QString message) {
 
 void SerialPortHandler::proximityCardInformation(void) {
     queriedNumbers_ = 0;
+    lastReadCardData_.clear();
     stopProcessCardReader_ = false;
     serialPortInformation_ = QSerialPortInfo::availablePorts();
     if (serialPortInformation_.isEmpty())
