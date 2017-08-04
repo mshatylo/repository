@@ -3,8 +3,9 @@
 #include <QDebug>
 #include "tracing.h"
 
-#define ONE_HUNDRED_FIFTY_MILI_SECOND (150)
-#define FIVE_MILI_SECOND                (5)
+#define ONE_HUNDRED_FIFTY_MILI_SECOND       (150)
+#define FIVE_MILI_SECOND                    (5)
+#define MAX_RETRIES_NUMBER_ON_INCORRECT_CRC (150)
 
 SerialPortHandler::SerialPortHandler(QObject *parent)
     : QObject(parent),
@@ -180,7 +181,14 @@ void SerialPortHandler::serialPortResponse(const QString &portName, const QStrin
             }
         }
     } else {
-        serialPortProcessError(portName, QString(tr("Modbus RTU CRC16 is not correct!")));
+
+        if (queriedNumbers_ < MAX_RETRIES_NUMBER_ON_INCORRECT_CRC) {
+            QThread::msleep(FIVE_MILI_SECOND);
+            serialPortMasterThread_.transaction(portName, settings_, currentRequest_);
+            queriedNumbers_ ++;
+        } else {
+            serialPortProcessError(portName, QString(tr("Modbus RTU CRC16 is not correct!")));
+        }
     }
 }
 
