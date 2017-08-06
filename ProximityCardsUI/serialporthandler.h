@@ -36,9 +36,11 @@ public:
 
 signals:
     void signalSendControlsEnabled(bool enable);
+    void signalSendAddProximityCardToControllerButtonEnabled(bool enable);
     void signalSendStatusBarMessage(QString message);
     void signalSendProximityCardInformation(const QString &cardData);
     void signalSendProximityCardMessage(const MessageType &messageType);
+    void sendDataByNetwork(const QString &data);
 
 public slots:
     void slotStusbarMessage(QString message);
@@ -46,7 +48,9 @@ public slots:
     void serialPortResponse(const QString &portName, const QString &responce);
     void serialPortProcessError(const QString &portName, const QString &s);
     void serialPortProcessTimeout(const QString &portName, const QString &s);
-    void stopProximityCard(void);
+    void stopProximityCardGetting(void);
+    void findCardReader(void);
+    void readCardData(void);
 private:
 
     bool veryfyDataPacket(SerialBusActions *serialBusActions,
@@ -78,7 +82,14 @@ private:
     QString currentRequest_;
     uint queriedNumbers_;
     QByteArray lastReadCardData_;
+    QString foundCardReaderPortName_;
     bool stopProcessCardReader_;
+    bool stoppedProcessCardReader_;
+    bool isNeededToFindCardReader_;
+    bool isCardReaderFound_;
+    bool isNeededToReadCardData_;
+    bool isCardDataRead_;
+    bool isNeededToSendDataByNetwork_;
 };
 
 #endif // SERIALPORTHANDLER_H

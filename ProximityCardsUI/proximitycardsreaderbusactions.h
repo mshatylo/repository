@@ -33,6 +33,7 @@ public:
     const uchar KeyQuery_[5]            = {0x55, 0x66, 0x00, 0x4a, 0x70};
     const uchar KeyNegativeAnswer_[5]   = {0x55, 0x66, 0x00, 0x4a, 0x70};
     const uchar KeyPositiveAnswer_[13]  = {0x55, 0x66, 0x08, 0x01, 0x32, 0x41, 0xa0, 0x00, 0x39, 0x00, 0xac, 0x1f, 0x3f};
+    const uchar KeyPositiveAnswerData_[8]  = { 0x01, 0x32, 0x41, 0xa0, 0x00, 0x39, 0x00, 0xac};
 
     const int   AddressByteNumber_{0};
     const int   CommandByteNumber_{1};
@@ -41,8 +42,8 @@ public:
     const uchar PingCommand_    {0x64};
     const uchar ResetKeyCommand_{0x65};
     const uchar KeyCommand_     {0x66};
-
-protected:
+//protected:
+public:
 
     ushort calculateCRC16(uchar *dataPacket, ushort dataPacketLength);
     bool equalCRC(ushort calculateCRC, uchar hiByte, uchar lowByte);

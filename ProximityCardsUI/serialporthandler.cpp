@@ -13,7 +13,12 @@ SerialPortHandler::SerialPortHandler(QObject *parent)
       proximityCardsReaderBusActions_(new ProximityCardsReaderBusActions),
       transactionCount_(0),
       queriedNumbers_(0),
-      stopProcessCardReader_(false)
+      stopProcessCardReader_(false),
+      stoppedProcessCardReader_(false),
+      isNeededToFindCardReader_(false),
+      isCardReaderFound_(false),
+      isNeededToReadCardData_(false),
+      isNeededToSendDataByNetwork_(false)
 {
     connect(&serialPortMasterThread_, &SerialPortMasterThread::response, this, &SerialPortHandler::serialPortResponse);
     connect(&serialPortMasterThread_, &SerialPortMasterThread::error, this, &SerialPortHandler::serialPortProcessError);
@@ -77,6 +82,11 @@ void SerialPortHandler::slotStusbarMessage(QString message) {
 
 void SerialPortHandler::proximityCardInformation(void) {
     queriedNumbers_ = 0;
+    stoppedProcessCardReader_ = false;
+    isNeededToFindCardReader_ = true;
+    isCardReaderFound_ = false;
+    isNeededToReadCardData_ = true;
+    isNeededToSendDataByNetwork_ = false;
     lastReadCardData_.clear();
     stopProcessCardReader_ = false;
     serialPortInformation_ = QSerialPortInfo::availablePorts();
@@ -91,6 +101,59 @@ void SerialPortHandler::proximityCardInformation(void) {
                                            , sizeof(proximityCardsReaderBusActions_->PingQuery_));
         serialPortMasterThread_.transaction(info.portName(), settings_, currentRequest_, false, true);
     }
+    emit signalSendControlsEnabled(false);
+}
+
+void SerialPortHandler::findCardReader(void) {
+    queriedNumbers_ = 0;
+    stoppedProcessCardReader_ = false;
+    isNeededToFindCardReader_ = true;
+    isCardReaderFound_ = false;
+    isNeededToReadCardData_ = false;
+    isNeededToSendDataByNetwork_ = false;
+    lastReadCardData_.clear();
+    stopProcessCardReader_ = false;
+    serialPortInformation_ = QSerialPortInfo::availablePorts();
+    if (serialPortInformation_.isEmpty())
+        return;
+    if (!proximityCardsReaderBusActions_)
+        return;
+    const QSerialPortInfo &info = serialPortInformation_.takeFirst();
+    slotStusbarMessage(tr("Status: Running, connecting to port %1.")
+                         .arg(info.portName()));
+    if (proximityCardsReaderBusActions_) {
+        currentRequest_ = cbufferToQString(proximityCardsReaderBusActions_->PingQuery_
+                                           , sizeof(proximityCardsReaderBusActions_->PingQuery_));
+        serialPortMasterThread_.transaction(info.portName(), settings_, currentRequest_, false, true);
+    }
+    emit signalSendControlsEnabled(false);
+}
+
+void SerialPortHandler::readCardData(void) {
+    if (!isCardReaderFound_) {
+        slotStusbarMessage(tr("Status: Does not find card reader!"));
+        return;
+    }
+
+    if (foundCardReaderPortName_.isEmpty()) {
+        slotStusbarMessage(tr("Status: Does not select com port name!"));
+        return;
+    }
+
+    queriedNumbers_ = 0;
+    stoppedProcessCardReader_ = false;
+    isNeededToFindCardReader_ = false;
+    isNeededToReadCardData_ = true;
+    isNeededToSendDataByNetwork_ = true;
+    //lastReadCardData_.clear();
+    stopProcessCardReader_ = false;
+    if (!proximityCardsReaderBusActions_)
+        return;
+    currentRequest_ = cbufferToQString(proximityCardsReaderBusActions_->KeyQuery_
+                                       , sizeof(proximityCardsReaderBusActions_->KeyQuery_));
+    QThread::msleep(FIVE_MILI_SECOND);
+    serialPortMasterThread_.transaction(foundCardReaderPortName_, settings_, currentRequest_);
+    queriedNumbers_ ++;
     emit signalSendControlsEnabled(false);
 }
 
@@ -122,6 +185,7 @@ void SerialPortHandler::serialPortResponse(const QString &portName, const QStrin
     if (stopProcessCardReader_) {
         emit signalSendProximityCardMessage(MessageType::response_);
         slotStusbarMessage(tr("User stop!"));
+        stoppedProcessCardReader_ = true;
         return;
     }
     if (!proximityCardsReaderBusActions_)
@@ -136,45 +200,69 @@ void SerialPortHandler::serialPortResponse(const QString &portName, const QStrin
             uchar command = dataRecord->command_;
             QString data = dataRecord->getData();
             delete dataRecord;
-            if (command == proximityCardsReaderBusActions_->PingCommand_ && data.isEmpty()) {
-                currentRequest_ = cbufferToQString(proximityCardsReaderBusActions_->ResetKeyQuery_
-                                                   , sizeof(proximityCardsReaderBusActions_->ResetKeyQuery_));
-                QThread::msleep(FIVE_MILI_SECOND);
-                serialPortMasterThread_.transaction(portName, settings_, currentRequest_, false, true);
-            } else if (command == proximityCardsReaderBusActions_->ResetKeyCommand_  && data.isEmpty()) {
-                currentRequest_ = cbufferToQString(proximityCardsReaderBusActions_->KeyQuery_
-                                                   , sizeof(proximityCardsReaderBusActions_->KeyQuery_));
-                QThread::msleep(FIVE_MILI_SECOND);
-                serialPortMasterThread_.transaction(portName, settings_, currentRequest_);
-                queriedNumbers_ ++;
-            } else if (command == proximityCardsReaderBusActions_->KeyCommand_) {
-                if (data.isEmpty() && queriedNumbers_ < settings_.numberOfRetries_ - 1) {
+
+            if (isNeededToFindCardReader_) {
+                if (command == proximityCardsReaderBusActions_->PingCommand_ && data.isEmpty()) {
+                    currentRequest_ = cbufferToQString(proximityCardsReaderBusActions_->ResetKeyQuery_
+                                                       , sizeof(proximityCardsReaderBusActions_->ResetKeyQuery_));
+                    QThread::msleep(FIVE_MILI_SECOND);
+                    serialPortMasterThread_.transaction(portName, settings_, currentRequest_, false, true);
+                } else if (command == proximityCardsReaderBusActions_->ResetKeyCommand_  && data.isEmpty()) {
+                    isNeededToFindCardReader_ = false;
+                    isCardReaderFound_ = true;
+                    foundCardReaderPortName_ = portName;
+                    if (!isNeededToReadCardData_) {
+                        emit signalSendControlsEnabled(true);
+                        emit signalSendAddProximityCardToControllerButtonEnabled(true);
+                    }
+                }
+            } else if (isNeededToReadCardData_) {
+                if (command == proximityCardsReaderBusActions_->ResetKeyCommand_  && data.isEmpty()
+                           && !isNeededToFindCardReader_) {
                     currentRequest_ = cbufferToQString(proximityCardsReaderBusActions_->KeyQuery_
                                                        , sizeof(proximityCardsReaderBusActions_->KeyQuery_));
                     QThread::msleep(FIVE_MILI_SECOND);
                     serialPortMasterThread_.transaction(portName, settings_, currentRequest_);
                     queriedNumbers_ ++;
-                }else if (data.isEmpty() && queriedNumbers_ == settings_.numberOfRetries_ - 1) {
-                    currentRequest_ = cbufferToQString(proximityCardsReaderBusActions_->KeyQuery_
-                                                       , sizeof(proximityCardsReaderBusActions_->KeyQuery_));
-                    QThread::msleep(FIVE_MILI_SECOND);
-                    serialPortMasterThread_.transaction(portName, settings_, currentRequest_, true);
-                    queriedNumbers_ ++;
-                }else if (data.isEmpty() && queriedNumbers_ == settings_.numberOfRetries_ ) {
-                    queriedNumbers_ = 0;
-                } else {
-                    lastReadCardData_ = data.toLatin1();
-                    QByteArray lastReadCardDataInversion;
-                    for  (auto it = lastReadCardData_.crbegin(); it != lastReadCardData_.crend(); it ++ )
-                        lastReadCardDataInversion.append(*it);
-                    emit signalSendProximityCardInformation(QString(lastReadCardDataInversion.toHex(' ')));
-                    emit signalSendProximityCardMessage(MessageType::response_);
-                    slotStusbarMessage(tr("Traffic, transaction #%1:"
-                                             "\n\r-request: %2"
-                                             "\n\r-response: command (%3), data (%4)")
-                                       .arg(++transactionCount_)
-                                       .arg(currentRequest_)
-                                       .arg(!lastReadCardDataInversion.isEmpty() ? QString(lastReadCardDataInversion.toHex(' ')) : "error get data"));
+                } else if (command == proximityCardsReaderBusActions_->KeyCommand_) {
+                    if (data.isEmpty() && queriedNumbers_ < settings_.numberOfRetries_ - 1) {
+                        currentRequest_ = cbufferToQString(proximityCardsReaderBusActions_->KeyQuery_
+                                                           , sizeof(proximityCardsReaderBusActions_->KeyQuery_));
+                        QThread::msleep(FIVE_MILI_SECOND);
+                        serialPortMasterThread_.transaction(portName, settings_, currentRequest_);
+                        queriedNumbers_ ++;
+                    }else if (data.isEmpty() && queriedNumbers_ == settings_.numberOfRetries_ - 1) {
+                        currentRequest_ = cbufferToQString(proximityCardsReaderBusActions_->KeyQuery_
+                                                           , sizeof(proximityCardsReaderBusActions_->KeyQuery_));
+                        QThread::msleep(FIVE_MILI_SECOND);
+                        serialPortMasterThread_.transaction(portName, settings_, currentRequest_, true);
+                        queriedNumbers_ ++;
+                    }else if (data.isEmpty() && queriedNumbers_ == settings_.numberOfRetries_ ) {
+                        queriedNumbers_ = 0;
+                    } else {
+                        lastReadCardData_ = data.toLatin1();
+                        QByteArray lastReadCardDataInversion;
+                        for  (auto it = lastReadCardData_.crbegin(); it != lastReadCardData_.crend(); it ++ )
+                            lastReadCardDataInversion.append(*it);
+                        emit signalSendProximityCardInformation(QString(lastReadCardDataInversion.toHex(' ')));
+                        emit signalSendProximityCardMessage(MessageType::response_);
+                        slotStusbarMessage(tr("Traffic, transaction #%1:"
+                                                 "\n\r-request: %2"
+                                                 "\n\r-response: command (%3), data (%4)")
+                                           .arg(++transactionCount_)
+                                           .arg(currentRequest_)
+                                           .arg(!lastReadCardDataInversion.isEmpty() ? QString(lastReadCardDataInversion.toHex(' '))
+                                                                                     : "error get data"));
+                        isNeededToReadCardData_ = false;
+
+                        if (isNeededToSendDataByNetwork_ ) {
+                            QString lastReadCardDataStr;
+                            for (int i = 0; i < lastReadCardDataInversion.size(); i++)
+                                lastReadCardDataStr += lastReadCardDataInversion.at(i);
+                            emit sendDataByNetwork(lastReadCardDataStr);
+                            isNeededToSendDataByNetwork_ = false;
+                        }
+                    }
                 }
             } else {
                 serialPortProcessError(portName, QString(tr("Algorithm sequence error!")));
@@ -198,6 +286,7 @@ void SerialPortHandler::serialPortProcessError(const QString &portName, const QS
     if (stopProcessCardReader_) {
         emit signalSendProximityCardMessage(MessageType::response_);
         slotStusbarMessage(tr("User stop!"));
+        stoppedProcessCardReader_ = true;
         return;
     }
     emit signalSendProximityCardMessage(MessageType::error_);
@@ -210,6 +299,7 @@ void SerialPortHandler::serialPortProcessTimeout(const QString &portName, const 
     if (stopProcessCardReader_) {
         emit signalSendProximityCardMessage(MessageType::response_);
         slotStusbarMessage(tr("User stop!"));
+        stoppedProcessCardReader_ = true;
         return;
     }
     if (!proximityCardsReaderBusActions_)
@@ -231,10 +321,44 @@ void SerialPortHandler::serialPortProcessTimeout(const QString &portName, const 
     } else {
         emit signalSendProximityCardMessage(MessageType::timout_);
         slotStusbarMessage(tr("Status: Running, %1 port: %2. No traffic.").arg(s).arg(portName));
+        //--
+        if (isNeededToFindCardReader_) {
+            isNeededToFindCardReader_ = false;
+            isCardReaderFound_ = true;
+            foundCardReaderPortName_ = portName;
+            QString data = cbufferToQString(proximityCardsReaderBusActions_->KeyPositiveAnswerData_
+                                                 , sizeof(proximityCardsReaderBusActions_->KeyPositiveAnswerData_));
+            lastReadCardData_ = data.toLatin1();
+            QByteArray lastReadCardDataInversion;
+            for  (auto it = lastReadCardData_.crbegin(); it != lastReadCardData_.crend(); it ++ )
+                lastReadCardDataInversion.append(*it);
+
+            if (!isNeededToReadCardData_) {
+                emit signalSendProximityCardInformation(QString(lastReadCardDataInversion.toHex(' ')));
+                emit signalSendControlsEnabled(true);
+                emit signalSendAddProximityCardToControllerButtonEnabled(true);
+            }
+        } else if (isNeededToReadCardData_) {
+            isNeededToReadCardData_ = false;
+
+            if (isNeededToSendDataByNetwork_ ) {
+                QByteArray lastReadCardDataInversion;
+                for  (auto it = lastReadCardData_.crbegin(); it != lastReadCardData_.crend(); it ++ )
+                    lastReadCardDataInversion.append(*it);
+
+                QString lastReadCardDataInversionStr;
+                for (int i = 0; i < lastReadCardDataInversion.size(); i++)
+                    lastReadCardDataInversionStr += lastReadCardDataInversion.at(i);
+
+                emit sendDataByNetwork(lastReadCardDataInversionStr);
+                isNeededToSendDataByNetwork_ = false;
+            }
+        }
+        //--
     }
 }
 
-void SerialPortHandler::stopProximityCard(void) {
+void SerialPortHandler::stopProximityCardGetting(void) {
     QMutexLocker mutexLocker(&mutex_);
     stopProcessCardReader_ = true;
 }

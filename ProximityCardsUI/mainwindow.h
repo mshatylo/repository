@@ -6,9 +6,12 @@
 #include <QPushButton>
 #include <QLabel>
 #include <QTextEdit>
+#include <QComboBox>
+#include <QLineEdit>
 #include "serialporthandler.h"
 #include "sqlhandler.h"
-#include <tcpserver.h>
+//#include "tcpserver.h"
+#include "tcpclient.h"
 
 namespace Ui {
 class MainWindow;
@@ -23,6 +26,7 @@ public:
     ~MainWindow();
 signals:
     void signalSendControlsEnabled(bool enable);
+    //void sendDataByNetwork(const QString &data);
 private slots:
     void getSerialPortInformation(void);
     void readProximityCard(void);
@@ -30,17 +34,20 @@ private slots:
     void MyslErrorMessage(const QString &title, const QString &message);
 private:
 
-    QPushButton *findReaderButton_;
-    QPushButton *readProximityCardButton_;
+    QPushButton *getSerialPortInformationButton_;
+    QPushButton *findReaderAndReadProximityCardButton_;
     QPushButton *stopProximityCardButton_;
     QPushButton *addProximityCardToDbButton_;
     QTextEdit *serialPortInformation_;
     QTextEdit *proximityCardInformation_;
-    QTextEdit *ipAddressPort_;
+    QComboBox *hostIpAdrressesComboBox_;
+    QLineEdit *hostPortLineEdit_;
+    QPushButton *findProximityCardReader_;
+    QPushButton *addProximityCardToControllerButton_;
     QTextEdit *serialMessagesHistory_;
     std::unique_ptr<SerialPortHandler> serialPortHandler_;
     std::unique_ptr<SqlHandler> sqlHandler_;
-    std::unique_ptr<TCPServer> tcpServer_;
+    std::unique_ptr<TCPClient> tcpClient_;
     std::unique_ptr<Ui::MainWindow> ui_;
  };
 

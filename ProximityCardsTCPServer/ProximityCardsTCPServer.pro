@@ -1,14 +1,14 @@
 #-------------------------------------------------
 #
-# Project created by QtCreator 2017-07-24T11:38:28
+# Project created by QtCreator 2017-08-04T23:07:42
 #
 #-------------------------------------------------
 
-QT       += core gui serialport sql network
+QT       += core gui network
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
-TARGET = ProximityCardsUI
+TARGET = ProximityCardsTCPServer
 TEMPLATE = app
 
 # The following define makes your compiler emit warnings if you use
@@ -26,35 +26,14 @@ DEFINES += QT_DEPRECATED_WARNINGS
 SOURCES += \
         main.cpp \
         mainwindow.cpp \
-    serialporthandler.cpp \
-    serialbusactions.cpp \
-    proximitycardsreaderbusactions.cpp \
-    serialportmasterthread.cpp \
-    sqlhandler.cpp \
-#    tcpserver.cpp \
-    tcpclient.cpp
+    tcpserver.cpp
 
 HEADERS += \
         mainwindow.h \
-    serialporthandler.h \
-    serialbusactions.h \
-    proximitycardsreaderbusactions.h \
-    serialportmasterthread.h \
-    sqlhandler.h \
-    tracing.h \
-    tcpclient.h
+    tcpserver.h
 
 FORMS += \
         mainwindow.ui
-#Please, correct INCLUDEPATH and LIBS pathes for mysql
-unix:!macx {
-    "INCLUDEPATH+=/usr/local/include"
-    "LIBS+=-L/usr/local/lib -lmysqlclient_r"
-}
-win32 {
-    "INCLUDEPATH+=C:/MySQL/include"
-    "LIBS+=C:/MYSQL/lib/opt/libmysql.lib"
-}
 
 RESOURCES += \
     main.qrc

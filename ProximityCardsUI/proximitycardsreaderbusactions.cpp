@@ -80,10 +80,11 @@ void *  ProximityCardsReaderBusActions::getDataRomRTUFrame(uchar address, uchar 
 
     const uint CommandByteNumber = 0;
     const uint PacketLengthByteNumber = 1;
-
     const uint PacketHeaderDataLength = 2;
 
     DataRecord *proximityCardReaderAnswerRecord = new DataRecord;
+    if (!proximityCardReaderAnswerRecord)
+        return nullptr;
     uint packetDataLength = 0;
     bool receiveDataPacket = false;
     uint counterReceivedByte = 0;
