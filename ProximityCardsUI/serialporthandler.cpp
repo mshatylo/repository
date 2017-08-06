@@ -145,7 +145,7 @@ void SerialPortHandler::readCardData(void) {
     isNeededToFindCardReader_ = false;
     isNeededToReadCardData_ = true;
     isNeededToSendDataByNetwork_ = true;
-    //lastReadCardData_.clear();
+    lastReadCardData_.clear();
     stopProcessCardReader_ = false;
     if (!proximityCardsReaderBusActions_)
         return;
@@ -321,40 +321,6 @@ void SerialPortHandler::serialPortProcessTimeout(const QString &portName, const 
     } else {
         emit signalSendProximityCardMessage(MessageType::timout_);
         slotStusbarMessage(tr("Status: Running, %1 port: %2. No traffic.").arg(s).arg(portName));
-        //--
-        if (isNeededToFindCardReader_) {
-            isNeededToFindCardReader_ = false;
-            isCardReaderFound_ = true;
-            foundCardReaderPortName_ = portName;
-            QString data = cbufferToQString(proximityCardsReaderBusActions_->KeyPositiveAnswerData_
-                                                 , sizeof(proximityCardsReaderBusActions_->KeyPositiveAnswerData_));
-            lastReadCardData_ = data.toLatin1();
-            QByteArray lastReadCardDataInversion;
-            for  (auto it = lastReadCardData_.crbegin(); it != lastReadCardData_.crend(); it ++ )
-                lastReadCardDataInversion.append(*it);
-
-            if (!isNeededToReadCardData_) {
-                emit signalSendProximityCardInformation(QString(lastReadCardDataInversion.toHex(' ')));
-                emit signalSendControlsEnabled(true);
-                emit signalSendAddProximityCardToControllerButtonEnabled(true);
-            }
-        } else if (isNeededToReadCardData_) {
-            isNeededToReadCardData_ = false;
-
-            if (isNeededToSendDataByNetwork_ ) {
-                QByteArray lastReadCardDataInversion;
-                for  (auto it = lastReadCardData_.crbegin(); it != lastReadCardData_.crend(); it ++ )
-                    lastReadCardDataInversion.append(*it);
-
-                QString lastReadCardDataInversionStr;
-                for (int i = 0; i < lastReadCardDataInversion.size(); i++)
-                    lastReadCardDataInversionStr += lastReadCardDataInversion.at(i);
-
-                emit sendDataByNetwork(lastReadCardDataInversionStr);
-                isNeededToSendDataByNetwork_ = false;
-            }
-        }
-        //--
     }
 }
 
